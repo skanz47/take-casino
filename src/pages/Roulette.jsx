@@ -1,0 +1,365 @@
+import { useState, useRef, useEffect, useCallback } from 'react'
+import BetControls from '../components/BetControls'
+import { getBalance, setBalance } from '../utils/balance'
+
+const RED_NUMBERS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]
+
+// American double-zero wheel order
+const WHEEL_ORDER = [
+  0, 28, 9, 26, 30, 11, 7, 20, 32, 17, 5, 22, 34, 15, 3, 24, 36, 13, 1,
+  '00', 27, 10, 25, 29, 12, 8, 19, 31, 18, 6, 21, 33, 16, 4, 23, 35, 14, 2
+]
+
+function getColor(num) {
+  if (num === 0 || num === '00') return 'green'
+  const n = typeof num === 'string' ? parseInt(num) : num
+  return RED_NUMBERS.includes(n) ? 'red' : 'black'
+}
+
+function numEquals(a, b) {
+  return String(a) === String(b)
+}
+
+// Layout: 3 rows of 12
+const BOARD_ROWS = [
+  [3,6,9,12,15,18,21,24,27,30,33,36],
+  [2,5,8,11,14,17,20,23,26,29,32,35],
+  [1,4,7,10,13,16,19,22,25,28,31,34],
+]
+
+const OUTSIDE_BETS = [
+  { label: '1-12', key: 'dozen1' },
+  { label: '13-24', key: 'dozen2' },
+  { label: '25-36', key: 'dozen3' },
+  { label: 'Red', key: 'red' },
+  { label: 'Black', key: 'black' },
+  { label: 'Odd', key: 'odd' },
+  { label: 'Even', key: 'even' },
+  { label: '1-18', key: 'low' },
+  { label: '19-36', key: 'high' },
+]
+
+function evaluateBet(betKey, result) {
+  const n = typeof result === 'string' ? -1 : result // '00' = -1 for number checks
+  if (result === 0 || result === '00') {
+    // Only straight bets on 0 or 00 win
+    if (numEquals(betKey, result)) return 35
+    return -1
+  }
+
+  if (typeof betKey === 'number' || betKey === '00') {
+    return numEquals(betKey, result) ? 35 : -1
+  }
+  switch (betKey) {
+    case 'red': return RED_NUMBERS.includes(n) ? 1 : -1
+    case 'black': return !RED_NUMBERS.includes(n) && n > 0 ? 1 : -1
+    case 'odd': return n > 0 && n % 2 === 1 ? 1 : -1
+    case 'even': return n > 0 && n % 2 === 0 ? 1 : -1
+    case 'low': return n >= 1 && n <= 18 ? 1 : -1
+    case 'high': return n >= 19 && n <= 36 ? 1 : -1
+    case 'dozen1': return n >= 1 && n <= 12 ? 2 : -1
+    case 'dozen2': return n >= 13 && n <= 24 ? 2 : -1
+    case 'dozen3': return n >= 25 && n <= 36 ? 2 : -1
+    default: return -1
+  }
+}
+
+const COLOR_MAP = { red: '#e53935', black: '#1a1a1a', green: '#0a7e28' }
+
+function drawWheel(ctx, cx, cy, radius, rotation) {
+  const count = WHEEL_ORDER.length
+  const arc = (Math.PI * 2) / count
+
+  // Outer ring
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(cx, cy, radius + 6, 0, Math.PI * 2)
+  ctx.lineWidth = 4
+  ctx.strokeStyle = '#c9a32a'
+  ctx.stroke()
+  ctx.restore()
+
+  // Segments
+  for (let i = 0; i < count; i++) {
+    const angle = rotation + i * arc
+    const num = WHEEL_ORDER[i]
+    const color = getColor(num)
+
+    ctx.beginPath()
+    ctx.moveTo(cx, cy)
+    ctx.arc(cx, cy, radius, angle, angle + arc)
+    ctx.closePath()
+    ctx.fillStyle = COLOR_MAP[color]
+    ctx.fill()
+    ctx.strokeStyle = '#3a3a3a'
+    ctx.lineWidth = 0.5
+    ctx.stroke()
+
+    // Number text
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.rotate(angle + arc / 2)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#ffffff'
+    ctx.font = `bold ${Math.round(radius * 0.08)}px sans-serif`
+    ctx.fillText(String(num), radius * 0.82, 0)
+    ctx.restore()
+  }
+
+  // Center circle
+  ctx.beginPath()
+  ctx.arc(cx, cy, radius * 0.35, 0, Math.PI * 2)
+  ctx.fillStyle = '#1a2c38'
+  ctx.fill()
+  ctx.strokeStyle = '#c9a32a'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  // Inner decorative ring
+  ctx.beginPath()
+  ctx.arc(cx, cy, radius * 0.55, 0, Math.PI * 2)
+  ctx.strokeStyle = '#c9a32a'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+
+  // Pointer (top)
+  ctx.beginPath()
+  ctx.moveTo(cx, cy - radius - 14)
+  ctx.lineTo(cx - 10, cy - radius - 28)
+  ctx.lineTo(cx + 10, cy - radius - 28)
+  ctx.closePath()
+  ctx.fillStyle = '#c9a32a'
+  ctx.fill()
+  ctx.strokeStyle = '#fff'
+  ctx.lineWidth = 1
+  ctx.stroke()
+}
+
+export default function Roulette({ balance, refreshBalance, addTransaction }) {
+  const [bet, setBet] = useState('5.00')
+  const [selectedBets, setSelectedBets] = useState([])
+  const [result, setResult] = useState(null)
+  const [spinning, setSpinning] = useState(false)
+  const [message, setMessage] = useState(null)
+  const [wheelAngle, setWheelAngle] = useState(0)
+  const canvasRef = useRef(null)
+  const animRef = useRef(null)
+  const currentAngleRef = useRef(0)
+
+  const WHEEL_SIZE = 320
+  const RADIUS = WHEEL_SIZE / 2 - 30
+
+  const chipAmount = parseFloat(bet) || 0
+
+  // Draw static wheel on mount and when angle changes
+  const renderWheel = useCallback((angle) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    ctx.clearRect(0, 0, WHEEL_SIZE, WHEEL_SIZE)
+    drawWheel(ctx, WHEEL_SIZE / 2, WHEEL_SIZE / 2, RADIUS, angle)
+  }, [RADIUS, WHEEL_SIZE])
+
+  useEffect(() => {
+    renderWheel(currentAngleRef.current)
+  }, [renderWheel])
+
+  const placeBet = (key) => {
+    if (spinning || chipAmount <= 0 || chipAmount > getBalance()) return
+    const existing = selectedBets.find(b => numEquals(b.key, key))
+    if (existing) {
+      if (chipAmount > getBalance()) return
+      setSelectedBets(selectedBets.map(b => numEquals(b.key, key) ? { ...b, amount: b.amount + chipAmount } : b))
+    } else {
+      setSelectedBets([...selectedBets, { key, amount: chipAmount }])
+    }
+    setBalance(getBalance() - chipAmount)
+    refreshBalance()
+  }
+
+  const clearBets = () => {
+    const totalReturn = selectedBets.reduce((s, b) => s + b.amount, 0)
+    setBalance(getBalance() + totalReturn)
+    refreshBalance()
+    setSelectedBets([])
+    setResult(null)
+    setMessage(null)
+  }
+
+  // Given a final rotation angle, figure out which pocket the pointer (top) lands on
+  const getPocketFromAngle = (rotation) => {
+    const count = WHEEL_ORDER.length
+    const arc = (Math.PI * 2) / count
+    // Pointer is at -PI/2 (top). Pocket i spans [rotation + i*arc, rotation + (i+1)*arc].
+    // Offset of pointer relative to rotation start:
+    let offset = (-Math.PI / 2 - rotation) % (Math.PI * 2)
+    // Normalize to [0, 2PI)
+    offset = ((offset % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)
+    const index = Math.floor(offset / arc) % count
+    return WHEEL_ORDER[index]
+  }
+
+  const spin = () => {
+    if (selectedBets.length === 0) return
+    setSpinning(true)
+    setResult(null)
+    setMessage(null)
+
+    // Random target: several full spins plus a random landing position
+    const extraSpins = (5 + Math.random() * 3) * Math.PI * 2
+    const randomOffset = Math.random() * Math.PI * 2
+    const targetAngle = currentAngleRef.current - extraSpins - randomOffset
+
+    const startAngle = currentAngleRef.current
+    const totalDelta = targetAngle - startAngle
+    const duration = 4000 // 4 seconds
+    const startTime = Date.now()
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime
+      const t = Math.min(elapsed / duration, 1)
+      // Ease-out cubic for satisfying deceleration
+      const eased = 1 - Math.pow(1 - t, 3)
+      const angle = startAngle + totalDelta * eased
+
+      currentAngleRef.current = angle
+      renderWheel(angle)
+
+      if (t < 1) {
+        animRef.current = requestAnimationFrame(animate)
+      } else {
+        // Derive outcome from the actual final wheel position
+        const outcome = getPocketFromAngle(angle)
+        currentAngleRef.current = angle
+        setResult(outcome)
+        setSpinning(false)
+
+        let totalWin = 0
+        for (const b of selectedBets) {
+          const payout = evaluateBet(b.key, outcome)
+          if (payout >= 0) {
+            totalWin += b.amount + b.amount * payout
+          }
+        }
+
+        if (totalWin > 0) {
+          setBalance(getBalance() + totalWin)
+          refreshBalance()
+          const totalBet = selectedBets.reduce((s, b) => s + b.amount, 0)
+          const profit = totalWin - totalBet
+          addTransaction('Roulette', profit)
+          setMessage({ type: profit >= 0 ? 'win' : 'lose', text: profit >= 0 ? `Won $${totalWin.toFixed(2)} (+$${profit.toFixed(2)} profit)` : `Returned $${totalWin.toFixed(2)}` })
+        } else {
+          const totalLost = selectedBets.reduce((s, b) => s + b.amount, 0)
+          addTransaction('Roulette', -totalLost)
+          setMessage({ type: 'lose', text: `Lost $${totalLost.toFixed(2)}` })
+        }
+        setSelectedBets([])
+      }
+    }
+
+    animRef.current = requestAnimationFrame(animate)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (animRef.current) cancelAnimationFrame(animRef.current)
+    }
+  }, [])
+
+  const getBetAmount = (key) => {
+    const b = selectedBets.find(x => numEquals(x.key, key))
+    return b ? b.amount : 0
+  }
+
+  const resultDisplay = result !== null ? String(result) : null
+
+  return (
+    <div className="game-container">
+      <h2 className="game-title">Roulette</h2>
+
+      <BetControls bet={bet} setBet={setBet} balance={balance} disabled={spinning} />
+
+      <div className="roulette-wheel-container">
+        <canvas
+          ref={canvasRef}
+          className="roulette-canvas"
+          width={WHEEL_SIZE}
+          height={WHEEL_SIZE}
+        />
+        {result !== null && !spinning && (
+          <div className={`roulette-result-badge ${getColor(result)}-badge`}>
+            {resultDisplay}
+          </div>
+        )}
+      </div>
+
+      {message && (
+        <div className={`game-result ${message.type}`}>{message.text}</div>
+      )}
+
+      {selectedBets.length > 0 && (
+        <div className="roulette-bets-summary">
+          Bets placed: {selectedBets.map(b => `${String(b.key)} ($${b.amount.toFixed(2)})`).join(', ')}
+        </div>
+      )}
+
+      <div className="roulette-board">
+        <div className="roulette-zeros">
+          <button
+            className={`roulette-num g ${getBetAmount(0) > 0 ? 'selected' : ''}`}
+            onClick={() => placeBet(0)}
+            disabled={spinning}
+          >
+            0
+          </button>
+          <button
+            className={`roulette-num g ${getBetAmount('00') > 0 ? 'selected' : ''}`}
+            onClick={() => placeBet('00')}
+            disabled={spinning}
+          >
+            00
+          </button>
+        </div>
+        {BOARD_ROWS.map((row, ri) => (
+          <div className="roulette-numbers" key={ri}>
+            {row.map(num => (
+              <button
+                key={num}
+                className={`roulette-num ${getColor(num) === 'red' ? 'r' : 'b'} ${getBetAmount(num) > 0 ? 'selected' : ''}`}
+                onClick={() => placeBet(num)}
+                disabled={spinning}
+              >
+                {num}
+              </button>
+            ))}
+          </div>
+        ))}
+
+        <div className="roulette-outside" style={{ marginTop: 8 }}>
+          {OUTSIDE_BETS.map(ob => (
+            <button
+              key={ob.key}
+              className={`roulette-outside-btn ${getBetAmount(ob.key) > 0 ? 'selected' : ''}`}
+              onClick={() => placeBet(ob.key)}
+              disabled={spinning}
+            >
+              {ob.label}
+              {getBetAmount(ob.key) > 0 && ` ($${getBetAmount(ob.key).toFixed(2)})`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn btn-primary" onClick={spin} disabled={spinning || selectedBets.length === 0}>
+          {spinning ? 'Spinning...' : 'Spin'}
+        </button>
+        <button className="btn btn-secondary" onClick={clearBets} disabled={spinning || selectedBets.length === 0}>
+          Clear Bets
+        </button>
+      </div>
+    </div>
+  )
+}

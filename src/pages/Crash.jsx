@@ -9,7 +9,7 @@ function generateCrashPoint() {
 
 export default function Crash({ balance, refreshBalance, addTransaction }) {
   const [bet, setBet] = useState('5.00')
-  const [phase, setPhase] = useState('waiting') // waiting, running, crashed, cashed
+  const [phase, setPhase] = useState('waiting')
   const [multiplier, setMultiplier] = useState(1.00)
   const [crashPoint, setCrashPoint] = useState(0)
   const [profit, setProfit] = useState(0)
@@ -28,7 +28,6 @@ export default function Crash({ balance, refreshBalance, addTransaction }) {
 
     ctx.clearRect(0, 0, w, h)
 
-    // Grid lines
     ctx.strokeStyle = 'rgba(255,255,255,0.05)'
     ctx.lineWidth = 1
     for (let i = 0; i < 5; i++) {
@@ -48,17 +47,14 @@ export default function Crash({ balance, refreshBalance, addTransaction }) {
     const padTop = 20
     const graphH = h - padTop - padBottom
 
-    // Power >1 compresses low values and stretches high values,
-    // so the line stays flat at first then sweeps sharply upward (like Stake)
     const toY = (mult) => {
       const normalized = Math.max(mult - 1, 0) / (maxMult - 1)
       const curved = Math.pow(normalized, 2)
       return h - padBottom - curved * graphH
     }
 
-    // Y-axis labels
     ctx.fillStyle = 'rgba(255,255,255,0.2)'
-    ctx.font = '11px sans-serif'
+    ctx.font = '11px Inter, sans-serif'
     ctx.textAlign = 'left'
     const labelSteps = [1, 1.5, 2, 3, 5, 10, 20, 50, 100]
     for (const lbl of labelSteps) {
@@ -74,7 +70,6 @@ export default function Crash({ balance, refreshBalance, addTransaction }) {
       ctx.stroke()
     }
 
-    // Draw the curve
     ctx.beginPath()
     ctx.strokeStyle = isCrashed ? '#ed4163' : '#00e701'
     ctx.lineWidth = 3
@@ -88,14 +83,12 @@ export default function Crash({ balance, refreshBalance, addTransaction }) {
     }
     ctx.stroke()
 
-    // Glow effect on the line
     ctx.save()
     ctx.shadowColor = isCrashed ? '#ed4163' : '#00e701'
     ctx.shadowBlur = 12
     ctx.stroke()
     ctx.restore()
 
-    // Fill under line with gradient
     const lastX = (points.length - 1) * xScale
     const gradient = ctx.createLinearGradient(0, 0, 0, h)
     if (isCrashed) {
@@ -129,7 +122,6 @@ export default function Crash({ balance, refreshBalance, addTransaction }) {
 
     const tick = () => {
       const elapsed = (Date.now() - startTimeRef.current) / 1000
-      // Multiplier grows exponentially: e^(0.15*t)
       const currentMult = Math.floor(Math.exp(0.15 * elapsed) * 100) / 100
 
       if (currentMult >= cp) {
@@ -144,7 +136,6 @@ export default function Crash({ balance, refreshBalance, addTransaction }) {
 
       setMultiplier(currentMult)
       pointsRef.current.push(currentMult)
-      // Keep points array manageable
       if (pointsRef.current.length > 500) {
         pointsRef.current = pointsRef.current.filter((_, i) => i % 2 === 0)
       }
@@ -177,7 +168,6 @@ export default function Crash({ balance, refreshBalance, addTransaction }) {
     }
   }, [])
 
-  // Reset canvas on new game
   useEffect(() => {
     if (phase === 'waiting') {
       const canvas = canvasRef.current
@@ -189,30 +179,30 @@ export default function Crash({ balance, refreshBalance, addTransaction }) {
     }
   }, [phase])
 
-  const getMultClass = () => {
-    if (phase === 'running') return 'running'
-    if (phase === 'crashed') return 'crashed'
-    if (phase === 'cashed') return 'cashed'
-    return 'waiting'
-  }
+  const multColorClass = {
+    running: 'text-accent',
+    crashed: 'text-danger',
+    cashed: 'text-warning',
+    waiting: 'text-text-muted',
+  }[phase]
 
   return (
-    <div className="game-container crash-container">
-      <h2 className="game-title">Crash</h2>
+    <div className="max-w-3xl mx-auto text-center">
+      <h2 className="text-2xl font-bold mb-4 text-white">Crash</h2>
 
       {history.length > 0 && (
-        <div className="crash-history">
+        <div className="flex gap-2 justify-center flex-wrap mb-3">
           {history.map((val, i) => (
-            <span key={i} className={`crash-history-item ${val < 2 ? 'low' : 'high'}`}>
+            <span key={i} className={`px-3 py-1 rounded-full text-sm font-bold bg-white/5 ${val < 2 ? 'text-danger' : 'text-green-400'}`}>
               {val.toFixed(2)}×
             </span>
           ))}
         </div>
       )}
 
-      <div className="crash-graph">
+      <div className="bg-secondary rounded-2xl h-[300px] flex items-center justify-center mb-6 relative overflow-hidden">
         <canvas ref={canvasRef} className="crash-graph-line" width={800} height={300} />
-        <div className={`crash-multiplier ${getMultClass()}`} style={{ position: 'relative', zIndex: 1 }}>
+        <div className={`text-6xl font-extrabold relative z-10 ${multColorClass}`}>
           {phase === 'waiting' && '1.00×'}
           {phase === 'running' && `${multiplier.toFixed(2)}×`}
           {phase === 'crashed' && `${crashPoint.toFixed(2)}×`}
@@ -221,26 +211,40 @@ export default function Crash({ balance, refreshBalance, addTransaction }) {
       </div>
 
       {phase === 'crashed' && (
-        <div className="game-result lose">Crashed at {crashPoint.toFixed(2)}× — Lost ${parseFloat(bet).toFixed(2)}</div>
+        <div className="p-3 rounded-lg font-semibold my-3 text-sm bg-red-500/10 text-danger border border-red-500/30">
+          Crashed at {crashPoint.toFixed(2)}× — Lost ${parseFloat(bet).toFixed(2)}
+        </div>
       )}
       {phase === 'cashed' && (
-        <div className="game-result win">Cashed out at {multiplier.toFixed(2)}× — Profit +${profit.toFixed(2)}</div>
+        <div className="p-3 rounded-lg font-semibold my-3 text-sm bg-green-500/10 text-green-400 border border-green-500/30">
+          Cashed out at {multiplier.toFixed(2)}× — Profit +${profit.toFixed(2)}
+        </div>
       )}
 
-      <div className="crash-controls">
+      <div className="flex items-center justify-center gap-3 flex-wrap">
         <BetControls bet={bet} setBet={setBet} balance={balance} disabled={phase === 'running'} />
         {phase === 'waiting' && (
-          <button className="btn btn-primary" onClick={startGame} disabled={!parseFloat(bet) || parseFloat(bet) > balance}>
+          <button
+            className="bg-accent hover:bg-accent-hover text-primary px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={startGame}
+            disabled={!parseFloat(bet) || parseFloat(bet) > balance}
+          >
             Start
           </button>
         )}
         {phase === 'running' && (
-          <button className="btn btn-warning" onClick={cashOut} style={{ fontSize: '1.2rem', padding: '12px 32px' }}>
+          <button
+            className="bg-warning hover:opacity-85 text-primary text-lg px-8 py-3 rounded-lg font-bold transition-colors border-none cursor-pointer"
+            onClick={cashOut}
+          >
             Cash Out ({multiplier.toFixed(2)}×)
           </button>
         )}
         {(phase === 'crashed' || phase === 'cashed') && (
-          <button className="btn btn-primary" onClick={() => setPhase('waiting')}>
+          <button
+            className="bg-accent hover:bg-accent-hover text-primary px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors border-none cursor-pointer"
+            onClick={() => setPhase('waiting')}
+          >
             Play Again
           </button>
         )}

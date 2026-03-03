@@ -14,7 +14,6 @@ function createShoe(decks = 6) {
       }
     }
   }
-  // Fisher-Yates shuffle
   for (let i = shoe.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [shoe[i], shoe[j]] = [shoe[j], shoe[i]]
@@ -56,7 +55,7 @@ function CardComponent({ card, hidden, index = 0, flipping = false }) {
   if (hidden) {
     return (
       <div
-        className={`bj-card hidden-card bj-card-enter`}
+        className="w-16 h-[90px] bg-gradient-to-br from-blue-800 to-blue-600 rounded-lg flex flex-col items-center justify-center text-white text-2xl font-bold shadow-md bj-card-enter"
         style={{ animationDelay: `${delay}s` }}
       >
         ?
@@ -68,8 +67,8 @@ function CardComponent({ card, hidden, index = 0, flipping = false }) {
     return (
       <div className="bj-card-flip-container">
         <div className="bj-card-flip">
-          <div className="bj-card-flip-back bj-card hidden-card">?</div>
-          <div className={`bj-card-flip-front bj-card ${isRed(card.suit) ? 'red' : 'black'}`}>
+          <div className="bj-card-flip-back w-16 h-[90px] bg-gradient-to-br from-blue-800 to-blue-600 rounded-lg flex flex-col items-center justify-center text-white text-2xl font-bold shadow-md">?</div>
+          <div className={`bj-card-flip-front w-16 h-[90px] bg-white rounded-lg flex flex-col items-center justify-center text-lg font-bold shadow-md ${isRed(card.suit) ? 'text-red-600' : 'text-gray-900'}`}>
             <div>{card.rank}</div>
             <div>{card.suit}</div>
           </div>
@@ -80,7 +79,7 @@ function CardComponent({ card, hidden, index = 0, flipping = false }) {
 
   return (
     <div
-      className={`bj-card ${isRed(card.suit) ? 'red' : 'black'} bj-card-enter`}
+      className={`w-16 h-[90px] bg-white rounded-lg flex flex-col items-center justify-center text-lg font-bold shadow-md bj-card-enter ${isRed(card.suit) ? 'text-red-600' : 'text-gray-900'}`}
       style={{ animationDelay: `${delay}s` }}
     >
       <div>{card.rank}</div>
@@ -96,7 +95,7 @@ export default function Blackjack({ balance, refreshBalance, addTransaction }) {
   const [playerHands, setPlayerHands] = useState([[]])
   const [activeHandIndex, setActiveHandIndex] = useState(0)
   const [dealerHand, setDealerHand] = useState([])
-  const [phase, setPhase] = useState('betting') // betting, playing, dealer, done
+  const [phase, setPhase] = useState('betting')
   const [results, setResults] = useState([])
   const [betAmounts, setBetAmounts] = useState([0])
   const [dealerFlipping, setDealerFlipping] = useState(false)
@@ -145,9 +144,7 @@ export default function Blackjack({ balance, refreshBalance, addTransaction }) {
     dealKeyRef.current++
     setDealKey(dealKeyRef.current)
 
-    // Check for blackjack
     if (isBlackjack(pHand)) {
-      // Resolve immediately
       finishRound([pHand], dHand, [numBet], s, idx)
     } else {
       setPhase('playing')
@@ -164,12 +161,12 @@ export default function Blackjack({ balance, refreshBalance, addTransaction }) {
     setPlayerHands(newHands)
 
     if (handValue(newHands[activeHandIndex]) >= 21) {
-      moveToNextHand(newHands, ns, ni)
+      moveToNextHand(newHands, betAmounts, ns, ni)
     }
   }
 
   const stand = () => {
-    moveToNextHand(playerHands, shoe, shoeIndex)
+    moveToNextHand(playerHands, betAmounts, shoe, shoeIndex)
   }
 
   const doubleDown = () => {
@@ -192,7 +189,7 @@ export default function Blackjack({ balance, refreshBalance, addTransaction }) {
     newHands[activeHandIndex] = [...newHands[activeHandIndex], card]
     setPlayerHands(newHands)
 
-    moveToNextHand(newHands, ns, ni)
+    moveToNextHand(newHands, newBets, ns, ni)
   }
 
   const split = () => {
@@ -221,7 +218,6 @@ export default function Blackjack({ balance, refreshBalance, addTransaction }) {
     setPlayerHands(newHands)
     setBetAmounts(newBets)
 
-    // If first hand is 21 after split, move on
     if (handValue(newHands[activeHandIndex]) === 21) {
       moveToNextHandAfterSplit(newHands, newBets, activeHandIndex, s2, i2)
     }
@@ -239,12 +235,12 @@ export default function Blackjack({ balance, refreshBalance, addTransaction }) {
     }
   }
 
-  const moveToNextHand = (hands, s, idx) => {
+  const moveToNextHand = (hands, bets, s, idx) => {
     const next = activeHandIndex + 1
     if (next < hands.length) {
       setActiveHandIndex(next)
     } else {
-      finishRound(hands, dealerHand, betAmounts, s, idx)
+      finishRound(hands, dealerHand, bets, s, idx)
     }
   }
 
@@ -252,7 +248,6 @@ export default function Blackjack({ balance, refreshBalance, addTransaction }) {
     setPhase('dealer')
     setDealerFlipping(true)
 
-    // Dealer draws after a flip delay
     setTimeout(() => {
       let currentDealerHand = [...dHand]
       let cs = s
@@ -323,23 +318,29 @@ export default function Blackjack({ balance, refreshBalance, addTransaction }) {
     getBalance() >= betAmounts[activeHandIndex]
 
   return (
-    <div className="game-container">
-      <h2 className="game-title">Blackjack</h2>
+    <div className="max-w-3xl mx-auto">
+      <h2 className="text-2xl font-bold mb-4 text-white">Blackjack</h2>
 
       {phase === 'betting' && (
         <>
           <BetControls bet={bet} setBet={setBet} balance={balance} />
-          <button className="btn btn-primary" onClick={deal} disabled={!parseFloat(bet) || parseFloat(bet) > balance}>
+          <button
+            className="bg-accent hover:bg-accent-hover text-primary px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={deal}
+            disabled={!parseFloat(bet) || parseFloat(bet) > balance}
+          >
             Deal
           </button>
         </>
       )}
 
       {phase !== 'betting' && (
-        <div className="bj-table">
-          <div className="bj-hand">
-            <div className="bj-hand-label">Dealer {(phase === 'done') ? `(${handValue(dealerHand)})` : ''}</div>
-            <div className="bj-cards">
+        <div className="bg-secondary rounded-2xl p-6 mb-4">
+          <div className="mb-5">
+            <div className="text-xs uppercase tracking-widest text-text-muted font-bold mb-2">
+              Dealer {(phase === 'done') ? `(${handValue(dealerHand)})` : ''}
+            </div>
+            <div className="flex gap-2 flex-wrap">
               {dealerHand.map((card, i) => (
                 <CardComponent
                   key={`${dealKey}-d-${i}`}
@@ -353,18 +354,23 @@ export default function Blackjack({ balance, refreshBalance, addTransaction }) {
           </div>
 
           {playerHands.map((hand, hIdx) => (
-            <div className="bj-hand" key={hIdx}>
-              <div className="bj-hand-label">
+            <div className="mb-5" key={hIdx}>
+              <div className="text-xs uppercase tracking-widest text-text-muted font-bold mb-2">
                 {playerHands.length > 1 ? `Hand ${hIdx + 1}` : 'Your Hand'} ({handValue(hand)})
                 {hIdx === activeHandIndex && phase === 'playing' && ' ◀'}
               </div>
-              <div className="bj-cards">
+              <div className="flex gap-2 flex-wrap">
                 {hand.map((card, i) => (
                   <CardComponent key={`${dealKey}-p${hIdx}-${i}`} card={card} index={i} />
                 ))}
               </div>
               {phase === 'done' && results[hIdx] && (
-                <div className={`game-result ${results[hIdx] === 'win' || results[hIdx] === 'blackjack' ? 'win' : results[hIdx] === 'push' ? 'push' : 'lose'}`}>
+                <div className={`p-3 rounded-lg font-semibold my-3 text-sm ${results[hIdx] === 'win' || results[hIdx] === 'blackjack'
+                    ? 'bg-green-500/10 text-green-400 border border-green-500/30'
+                    : results[hIdx] === 'push'
+                      ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30'
+                      : 'bg-red-500/10 text-danger border border-red-500/30'
+                  }`}>
                   {results[hIdx] === 'blackjack' && `Blackjack! +$${(betAmounts[hIdx] * 1.5).toFixed(2)}`}
                   {results[hIdx] === 'win' && `Win! +$${betAmounts[hIdx].toFixed(2)}`}
                   {results[hIdx] === 'push' && 'Push - Bet returned'}
@@ -375,16 +381,19 @@ export default function Blackjack({ balance, refreshBalance, addTransaction }) {
           ))}
 
           {phase === 'playing' && (
-            <div className="bj-actions">
-              <button className="btn btn-primary" onClick={hit}>Hit</button>
-              <button className="btn btn-secondary" onClick={stand}>Stand</button>
-              <button className="btn btn-warning" onClick={doubleDown} disabled={!canDouble}>Double</button>
-              <button className="btn btn-secondary" onClick={split} disabled={!canSplit}>Split</button>
+            <div className="flex gap-2 flex-wrap">
+              <button className="bg-accent hover:bg-accent-hover text-primary px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors border-none cursor-pointer" onClick={hit}>Hit</button>
+              <button className="bg-tertiary hover:bg-tertiary/80 text-white px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors border-none cursor-pointer" onClick={stand}>Stand</button>
+              <button className="bg-warning hover:opacity-85 text-primary px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" onClick={doubleDown} disabled={!canDouble}>Double</button>
+              <button className="bg-tertiary hover:bg-tertiary/80 text-white px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" onClick={split} disabled={!canSplit}>Split</button>
             </div>
           )}
 
           {phase === 'done' && (
-            <button className="btn btn-primary" onClick={() => setPhase('betting')} style={{ marginTop: 12 }}>
+            <button
+              className="bg-accent hover:bg-accent-hover text-primary px-6 py-2.5 rounded-lg font-bold text-sm transition-colors border-none cursor-pointer mt-3"
+              onClick={() => setPhase('betting')}
+            >
               New Hand
             </button>
           )}

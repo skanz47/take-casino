@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import BetControls from '../components/BetControls'
 import { getBalance, setBalance } from '../utils/balance'
 
-const GRID_SIZE = 25 // 5x5
+const GRID_SIZE = 25
 
 function generateMines(count) {
   const positions = new Set()
@@ -13,9 +13,6 @@ function generateMines(count) {
 }
 
 function calculateMultiplier(mineCount, revealed, houseEdge = 0.01) {
-  // Probability-based multiplier with house edge
-  // Each reveal: probability = (safeTilesLeft) / (totalTilesLeft)
-  // Cumulative multiplier = 1 / (product of probabilities) * (1 - houseEdge)
   const totalTiles = GRID_SIZE
   const safeTiles = totalTiles - mineCount
   let probProduct = 1
@@ -31,7 +28,7 @@ function calculateMultiplier(mineCount, revealed, houseEdge = 0.01) {
 export default function Mines({ balance, refreshBalance, addTransaction }) {
   const [bet, setBet] = useState('5.00')
   const [mineCount, setMineCount] = useState(3)
-  const [phase, setPhase] = useState('setup') // setup, playing, busted, cashed
+  const [phase, setPhase] = useState('setup')
   const [mines, setMines] = useState(new Set())
   const [revealed, setRevealed] = useState(new Set())
   const [currentMultiplier, setCurrentMultiplier] = useState(1)
@@ -52,7 +49,6 @@ export default function Mines({ balance, refreshBalance, addTransaction }) {
     setPhase('playing')
   }
 
-  // Stagger-reveal remaining tiles at game end
   const triggerEndgameReveal = (currentRevealed, currentMines) => {
     endgameTimers.current.forEach(t => clearTimeout(t))
     endgameTimers.current = []
@@ -62,7 +58,6 @@ export default function Mines({ balance, refreshBalance, addTransaction }) {
     for (let i = 0; i < GRID_SIZE; i++) {
       if (!currentRevealed.has(i)) unrevealed.push(i)
     }
-    // Reveal mines first, then safe tiles
     const minesFirst = unrevealed.filter(i => currentMines.has(i))
     const safeAfter = unrevealed.filter(i => !currentMines.has(i))
     const order = [...minesFirst, ...safeAfter]
@@ -103,7 +98,6 @@ export default function Mines({ balance, refreshBalance, addTransaction }) {
     const newMult = calculateMultiplier(mineCount, newRevealed.size)
     setCurrentMultiplier(newMult)
 
-    // Auto-win if all safe tiles revealed
     if (newRevealed.size === GRID_SIZE - mineCount) {
       const winnings = activeBet * newMult
       setBalance(getBalance() + winnings)
@@ -144,31 +138,33 @@ export default function Mines({ balance, refreshBalance, addTransaction }) {
   }
 
   const getTileClass = (index) => {
+    const base = 'mines-tile w-16 h-16 bg-tertiary border-2 border-transparent rounded-lg cursor-pointer flex items-center justify-center text-2xl transition-all hover:bg-[#1e2d3a] hover:border-accent hover:scale-105 disabled:hover:scale-100 disabled:hover:bg-tertiary disabled:hover:border-transparent disabled:cursor-default'
+
     if (revealed.has(index)) {
-      if (mines.has(index)) return 'revealed mine'
-      return 'revealed safe'
+      if (mines.has(index)) return `${base} revealed mine !bg-red-500/20 !border-danger`
+      return `${base} revealed safe !bg-accent/15 !border-accent`
     }
     if ((phase === 'busted' || phase === 'cashed') && endgameRevealed.has(index)) {
-      if (mines.has(index)) return 'revealed mine endgame-mine'
-      return 'revealed hidden-safe'
+      if (mines.has(index)) return `${base} revealed mine endgame-mine !bg-red-500/20 !border-danger`
+      return `${base} revealed hidden-safe !bg-accent/5 !border-text-muted`
     }
-    return ''
+    return base
   }
 
   const potentialWin = activeBet * currentMultiplier
   const nextMultiplier = phase === 'playing' ? calculateMultiplier(mineCount, revealed.size + 1) : currentMultiplier
 
   return (
-    <div className="game-container">
-      <h2 className="game-title">Mines</h2>
+    <div className="max-w-3xl mx-auto">
+      <h2 className="text-2xl font-bold mb-4 text-white">Mines</h2>
 
-      <div className="mines-game">
+      <div className="flex gap-6 items-start flex-wrap">
         <div>
-          <div className="mines-grid">
+          <div className="grid grid-cols-5 gap-1.5 w-[350px]">
             {Array.from({ length: GRID_SIZE }, (_, i) => (
               <button
                 key={i}
-                className={`mines-tile ${getTileClass(i)}`}
+                className={getTileClass(i)}
                 onClick={() => revealTile(i)}
                 disabled={phase !== 'playing' || revealed.has(i)}
               >
@@ -178,15 +174,15 @@ export default function Mines({ balance, refreshBalance, addTransaction }) {
           </div>
         </div>
 
-        <div className="mines-panel">
+        <div className="flex-1 min-w-[240px]">
           {phase === 'setup' && (
-            <div className="mines-info">
+            <div className="bg-secondary rounded-xl p-5">
               <BetControls bet={bet} setBet={setBet} balance={balance} />
-              <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4 }}>
+              <label className="block text-sm text-text-secondary font-semibold mb-1">
                 Mines ({mineCount})
               </label>
               <select
-                className="mines-select"
+                className="bg-primary border-2 border-tertiary text-white px-3 py-2 rounded-lg text-sm w-full my-2 outline-none focus:border-accent"
                 value={mineCount}
                 onChange={e => setMineCount(parseInt(e.target.value))}
               >
@@ -195,8 +191,7 @@ export default function Mines({ balance, refreshBalance, addTransaction }) {
                 ))}
               </select>
               <button
-                className="btn btn-primary"
-                style={{ width: '100%', marginTop: 8 }}
+                className="w-full mt-2 bg-accent hover:bg-accent-hover text-primary py-2.5 rounded-lg font-bold text-sm transition-colors border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 onClick={startGame}
                 disabled={!parseFloat(bet) || parseFloat(bet) > balance}
               >
@@ -206,34 +201,33 @@ export default function Mines({ balance, refreshBalance, addTransaction }) {
           )}
 
           {phase === 'playing' && (
-            <div className="mines-info">
-              <div className="mines-info-row">
+            <div className="bg-secondary rounded-xl p-5">
+              <div className="flex justify-between py-1.5 text-sm text-text-secondary">
                 <span>Bet</span>
-                <span>${activeBet.toFixed(2)}</span>
+                <span className="text-white font-semibold">${activeBet.toFixed(2)}</span>
               </div>
-              <div className="mines-info-row">
+              <div className="flex justify-between py-1.5 text-sm text-text-secondary">
                 <span>Mines</span>
-                <span>{mineCount}</span>
+                <span className="text-white font-semibold">{mineCount}</span>
               </div>
-              <div className="mines-info-row">
+              <div className="flex justify-between py-1.5 text-sm text-text-secondary">
                 <span>Revealed</span>
-                <span>{revealed.size}</span>
+                <span className="text-white font-semibold">{revealed.size}</span>
               </div>
-              <div className="mines-info-row">
+              <div className="flex justify-between py-1.5 text-sm text-text-secondary">
                 <span>Multiplier</span>
-                <span style={{ color: 'var(--accent)' }}>{currentMultiplier.toFixed(2)}×</span>
+                <span className="text-accent font-semibold">{currentMultiplier.toFixed(2)}×</span>
               </div>
-              <div className="mines-info-row">
+              <div className="flex justify-between py-1.5 text-sm text-text-secondary">
                 <span>Next tile</span>
-                <span style={{ color: 'var(--warning)' }}>{nextMultiplier.toFixed(2)}×</span>
+                <span className="text-warning font-semibold">{nextMultiplier.toFixed(2)}×</span>
               </div>
-              <div className="mines-info-row" style={{ borderTop: '1px solid var(--bg-tertiary)', paddingTop: 8, marginTop: 4 }}>
+              <div className="flex justify-between py-2 text-sm text-text-secondary border-t border-tertiary mt-2">
                 <span>Potential Win</span>
-                <span style={{ color: 'var(--accent)', fontSize: '1.1rem' }}>${potentialWin.toFixed(2)}</span>
+                <span className="text-accent font-semibold text-base">${potentialWin.toFixed(2)}</span>
               </div>
               <button
-                className="btn btn-primary"
-                style={{ width: '100%', marginTop: 12 }}
+                className="w-full mt-3 bg-accent hover:bg-accent-hover text-primary py-2.5 rounded-lg font-bold text-sm transition-colors border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 onClick={cashOut}
                 disabled={revealed.size === 0}
               >
@@ -243,22 +237,22 @@ export default function Mines({ balance, refreshBalance, addTransaction }) {
           )}
 
           {phase === 'busted' && (
-            <div className="mines-info">
-              <div className="game-result lose">
+            <div className="bg-secondary rounded-xl p-5">
+              <div className="p-3 rounded-lg font-semibold my-3 text-sm bg-red-500/10 text-danger border border-red-500/30">
                 Hit a mine! Lost ${activeBet.toFixed(2)}
               </div>
-              <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={newGame}>
+              <button className="w-full mt-2 bg-accent hover:bg-accent-hover text-primary py-2.5 rounded-lg font-bold text-sm transition-colors border-none cursor-pointer" onClick={newGame}>
                 New Game
               </button>
             </div>
           )}
 
           {phase === 'cashed' && (
-            <div className="mines-info">
-              <div className="game-result win">
+            <div className="bg-secondary rounded-xl p-5">
+              <div className="p-3 rounded-lg font-semibold my-3 text-sm bg-green-500/10 text-green-400 border border-green-500/30">
                 Cashed out at {currentMultiplier.toFixed(2)}× — Won ${potentialWin.toFixed(2)}
               </div>
-              <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={newGame}>
+              <button className="w-full mt-2 bg-accent hover:bg-accent-hover text-primary py-2.5 rounded-lg font-bold text-sm transition-colors border-none cursor-pointer" onClick={newGame}>
                 New Game
               </button>
             </div>

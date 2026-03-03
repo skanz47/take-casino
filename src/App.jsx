@@ -14,6 +14,7 @@ import { getTransactions, addTransaction as addTx, clearTransactions } from './u
 export default function App() {
   const [balance, setBalance] = useState(getBalance())
   const [transactions, setTransactions] = useState(getTransactions())
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const refreshBalance = useCallback(() => {
     setBalance(getBalance())
@@ -30,11 +31,20 @@ export default function App() {
   }, [])
 
   return (
-    <div className="app">
-      <Sidebar />
-      <div className="main-area">
-        <Navbar balance={balance} refreshBalance={refreshBalance} transactions={transactions} onClearTransactions={handleClearTransactions} />
-        <div className="content">
+    <div className="flex min-h-screen bg-primary">
+      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+      <div className="flex-1 md:ml-[260px] flex flex-col min-h-screen">
+        <Navbar
+          balance={balance}
+          refreshBalance={refreshBalance}
+          transactions={transactions}
+          onClearTransactions={handleClearTransactions}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        />
+        <div className="flex-1 p-4 md:p-6 mt-16">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/blackjack" element={<Blackjack balance={balance} refreshBalance={refreshBalance} addTransaction={addTransaction} />} />

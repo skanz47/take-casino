@@ -4,7 +4,6 @@ import { getBalance, setBalance } from '../utils/balance'
 
 const RED_NUMBERS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]
 
-// American double-zero wheel order
 const WHEEL_ORDER = [
   0, 28, 9, 26, 30, 11, 7, 20, 32, 17, 5, 22, 34, 15, 3, 24, 36, 13, 1,
   '00', 27, 10, 25, 29, 12, 8, 19, 31, 18, 6, 21, 33, 16, 4, 23, 35, 14, 2
@@ -20,7 +19,6 @@ function numEquals(a, b) {
   return String(a) === String(b)
 }
 
-// Layout: 3 rows of 12
 const BOARD_ROWS = [
   [3,6,9,12,15,18,21,24,27,30,33,36],
   [2,5,8,11,14,17,20,23,26,29,32,35],
@@ -40,9 +38,8 @@ const OUTSIDE_BETS = [
 ]
 
 function evaluateBet(betKey, result) {
-  const n = typeof result === 'string' ? -1 : result // '00' = -1 for number checks
+  const n = typeof result === 'string' ? -1 : result
   if (result === 0 || result === '00') {
-    // Only straight bets on 0 or 00 win
     if (numEquals(betKey, result)) return 35
     return -1
   }
@@ -70,7 +67,6 @@ function drawWheel(ctx, cx, cy, radius, rotation) {
   const count = WHEEL_ORDER.length
   const arc = (Math.PI * 2) / count
 
-  // Outer ring
   ctx.save()
   ctx.beginPath()
   ctx.arc(cx, cy, radius + 6, 0, Math.PI * 2)
@@ -79,7 +75,6 @@ function drawWheel(ctx, cx, cy, radius, rotation) {
   ctx.stroke()
   ctx.restore()
 
-  // Segments
   for (let i = 0; i < count; i++) {
     const angle = rotation + i * arc
     const num = WHEEL_ORDER[i]
@@ -95,7 +90,6 @@ function drawWheel(ctx, cx, cy, radius, rotation) {
     ctx.lineWidth = 0.5
     ctx.stroke()
 
-    // Number text
     ctx.save()
     ctx.translate(cx, cy)
     ctx.rotate(angle + arc / 2)
@@ -107,7 +101,6 @@ function drawWheel(ctx, cx, cy, radius, rotation) {
     ctx.restore()
   }
 
-  // Center circle
   ctx.beginPath()
   ctx.arc(cx, cy, radius * 0.35, 0, Math.PI * 2)
   ctx.fillStyle = '#1a2c38'
@@ -116,14 +109,12 @@ function drawWheel(ctx, cx, cy, radius, rotation) {
   ctx.lineWidth = 2
   ctx.stroke()
 
-  // Inner decorative ring
   ctx.beginPath()
   ctx.arc(cx, cy, radius * 0.55, 0, Math.PI * 2)
   ctx.strokeStyle = '#c9a32a'
   ctx.lineWidth = 1.5
   ctx.stroke()
 
-  // Pointer (top)
   ctx.beginPath()
   ctx.moveTo(cx, cy - radius - 14)
   ctx.lineTo(cx - 10, cy - radius - 28)
@@ -142,7 +133,6 @@ export default function Roulette({ balance, refreshBalance, addTransaction }) {
   const [result, setResult] = useState(null)
   const [spinning, setSpinning] = useState(false)
   const [message, setMessage] = useState(null)
-  const [wheelAngle, setWheelAngle] = useState(0)
   const canvasRef = useRef(null)
   const animRef = useRef(null)
   const currentAngleRef = useRef(0)
@@ -152,7 +142,6 @@ export default function Roulette({ balance, refreshBalance, addTransaction }) {
 
   const chipAmount = parseFloat(bet) || 0
 
-  // Draw static wheel on mount and when angle changes
   const renderWheel = useCallback((angle) => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -187,14 +176,10 @@ export default function Roulette({ balance, refreshBalance, addTransaction }) {
     setMessage(null)
   }
 
-  // Given a final rotation angle, figure out which pocket the pointer (top) lands on
   const getPocketFromAngle = (rotation) => {
     const count = WHEEL_ORDER.length
     const arc = (Math.PI * 2) / count
-    // Pointer is at -PI/2 (top). Pocket i spans [rotation + i*arc, rotation + (i+1)*arc].
-    // Offset of pointer relative to rotation start:
     let offset = (-Math.PI / 2 - rotation) % (Math.PI * 2)
-    // Normalize to [0, 2PI)
     offset = ((offset % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)
     const index = Math.floor(offset / arc) % count
     return WHEEL_ORDER[index]
@@ -206,20 +191,18 @@ export default function Roulette({ balance, refreshBalance, addTransaction }) {
     setResult(null)
     setMessage(null)
 
-    // Random target: several full spins plus a random landing position
     const extraSpins = (5 + Math.random() * 3) * Math.PI * 2
     const randomOffset = Math.random() * Math.PI * 2
     const targetAngle = currentAngleRef.current - extraSpins - randomOffset
 
     const startAngle = currentAngleRef.current
     const totalDelta = targetAngle - startAngle
-    const duration = 4000 // 4 seconds
+    const duration = 4000
     const startTime = Date.now()
 
     const animate = () => {
       const elapsed = Date.now() - startTime
       const t = Math.min(elapsed / duration, 1)
-      // Ease-out cubic for satisfying deceleration
       const eased = 1 - Math.pow(1 - t, 3)
       const angle = startAngle + totalDelta * eased
 
@@ -229,7 +212,6 @@ export default function Roulette({ balance, refreshBalance, addTransaction }) {
       if (t < 1) {
         animRef.current = requestAnimationFrame(animate)
       } else {
-        // Derive outcome from the actual final wheel position
         const outcome = getPocketFromAngle(angle)
         currentAngleRef.current = angle
         setResult(outcome)
@@ -275,13 +257,15 @@ export default function Roulette({ balance, refreshBalance, addTransaction }) {
 
   const resultDisplay = result !== null ? String(result) : null
 
+  const numBtnBase = 'py-2.5 px-1 text-center border-none rounded cursor-pointer font-semibold text-sm text-white transition-all hover:opacity-80 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed'
+
   return (
-    <div className="game-container">
-      <h2 className="game-title">Roulette</h2>
+    <div className="max-w-3xl mx-auto">
+      <h2 className="text-2xl font-bold mb-4 text-white">Roulette</h2>
 
       <BetControls bet={bet} setBet={setBet} balance={balance} disabled={spinning} />
 
-      <div className="roulette-wheel-container">
+      <div className="flex flex-col items-center mb-6 relative">
         <canvas
           ref={canvasRef}
           className="roulette-canvas"
@@ -289,59 +273,65 @@ export default function Roulette({ balance, refreshBalance, addTransaction }) {
           height={WHEEL_SIZE}
         />
         {result !== null && !spinning && (
-          <div className={`roulette-result-badge ${getColor(result)}-badge`}>
+          <div className={`roulette-result-badge mt-3 px-6 py-2 rounded-full text-2xl font-extrabold ${
+            getColor(result) === 'green' ? 'bg-green-700 text-white' :
+            getColor(result) === 'red' ? 'bg-red-600 text-white' :
+            'bg-zinc-800 text-white border border-zinc-500'
+          }`}>
             {resultDisplay}
           </div>
         )}
       </div>
 
       {message && (
-        <div className={`game-result ${message.type}`}>{message.text}</div>
+        <div className={`p-3 rounded-lg font-semibold my-3 text-sm ${
+          message.type === 'win'
+            ? 'bg-green-500/10 text-green-400 border border-green-500/30'
+            : 'bg-red-500/10 text-danger border border-red-500/30'
+        }`}>{message.text}</div>
       )}
 
       {selectedBets.length > 0 && (
-        <div className="roulette-bets-summary">
+        <div className="bg-secondary rounded-lg px-4 py-3 mb-3 text-sm text-text-secondary">
           Bets placed: {selectedBets.map(b => `${String(b.key)} ($${b.amount.toFixed(2)})`).join(', ')}
         </div>
       )}
 
-      <div className="roulette-board">
-        <div className="roulette-zeros">
+      <div className="flex flex-col gap-1 mb-4">
+        <div className="flex gap-1 mb-1">
           <button
-            className={`roulette-num g ${getBetAmount(0) > 0 ? 'selected' : ''}`}
+            className={`${numBtnBase} flex-1 bg-green-700 ${getBetAmount(0) > 0 ? 'ring-2 ring-accent ring-offset-1 ring-offset-primary' : ''}`}
             onClick={() => placeBet(0)}
             disabled={spinning}
-          >
-            0
-          </button>
+          >0</button>
           <button
-            className={`roulette-num g ${getBetAmount('00') > 0 ? 'selected' : ''}`}
+            className={`${numBtnBase} flex-1 bg-green-700 ${getBetAmount('00') > 0 ? 'ring-2 ring-accent ring-offset-1 ring-offset-primary' : ''}`}
             onClick={() => placeBet('00')}
             disabled={spinning}
-          >
-            00
-          </button>
+          >00</button>
         </div>
         {BOARD_ROWS.map((row, ri) => (
-          <div className="roulette-numbers" key={ri}>
+          <div className="grid grid-cols-12 gap-1" key={ri}>
             {row.map(num => (
               <button
                 key={num}
-                className={`roulette-num ${getColor(num) === 'red' ? 'r' : 'b'} ${getBetAmount(num) > 0 ? 'selected' : ''}`}
+                className={`${numBtnBase} ${getColor(num) === 'red' ? 'bg-red-600' : 'bg-zinc-800'} ${getBetAmount(num) > 0 ? 'ring-2 ring-accent ring-offset-1 ring-offset-primary' : ''}`}
                 onClick={() => placeBet(num)}
                 disabled={spinning}
-              >
-                {num}
-              </button>
+              >{num}</button>
             ))}
           </div>
         ))}
 
-        <div className="roulette-outside" style={{ marginTop: 8 }}>
+        <div className="flex gap-1 flex-wrap mt-2">
           {OUTSIDE_BETS.map(ob => (
             <button
               key={ob.key}
-              className={`roulette-outside-btn ${getBetAmount(ob.key) > 0 ? 'selected' : ''}`}
+              className={`flex-1 min-w-[80px] py-2.5 px-2 bg-tertiary border-2 rounded-lg cursor-pointer text-xs font-semibold text-center transition-all hover:text-white disabled:opacity-50 disabled:cursor-not-allowed ${
+                getBetAmount(ob.key) > 0
+                  ? 'border-accent text-accent bg-accent/10'
+                  : 'border-transparent text-text-secondary hover:border-accent'
+              }`}
               onClick={() => placeBet(ob.key)}
               disabled={spinning}
             >
@@ -352,11 +342,19 @@ export default function Roulette({ balance, refreshBalance, addTransaction }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button className="btn btn-primary" onClick={spin} disabled={spinning || selectedBets.length === 0}>
+      <div className="flex gap-2">
+        <button
+          className="bg-accent hover:bg-accent-hover text-primary px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          onClick={spin}
+          disabled={spinning || selectedBets.length === 0}
+        >
           {spinning ? 'Spinning...' : 'Spin'}
         </button>
-        <button className="btn btn-secondary" onClick={clearBets} disabled={spinning || selectedBets.length === 0}>
+        <button
+          className="bg-tertiary hover:bg-tertiary/80 text-white px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          onClick={clearBets}
+          disabled={spinning || selectedBets.length === 0}
+        >
           Clear Bets
         </button>
       </div>

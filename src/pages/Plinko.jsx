@@ -2,7 +2,6 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import BetControls from '../components/BetControls'
 import { getBalance, setBalance } from '../utils/balance'
 
-// Multiplier tables based on Stake's plinko payouts
 const MULTIPLIERS = {
   8: {
     Low:    [5.6, 2.1, 1.1, 1, 0.5, 1, 1.1, 2.1, 5.6],
@@ -52,19 +51,17 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
   const [hitSlots, setHitSlots] = useState([])
   const canvasRef = useRef(null)
   const animRef = useRef(null)
-  const ballsRef = useRef([]) // array of active ball animations
+  const ballsRef = useRef([])
   const ballIdCounter = useRef(0)
 
   const multipliers = MULTIPLIERS[rows][risk]
   const slotColors = getSlotColors(rows)
 
-  // Compute positions for a ball path
   const computePath = useCallback((path, numRows) => {
     const rowHeight = (CANVAS_H - PAD_TOP - PAD_BOTTOM) / numRows
     const positions = []
     let currentSlot = 0
 
-    // Start above the board
     positions.push({ x: CANVAS_W / 2, y: PAD_TOP - 20 })
 
     for (let row = 0; row < numRows; row++) {
@@ -81,7 +78,6 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
       positions.push({ x, y })
     }
 
-    // Final slot position
     const slotCount = numRows + 1
     const finalRowWidth = CANVAS_W - PAD_X * 2
     const finalSpacing = finalRowWidth / (slotCount - 1)
@@ -99,7 +95,6 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
 
     const rowHeight = (CANVAS_H - PAD_TOP - PAD_BOTTOM) / rows
 
-    // Draw pegs
     for (let row = 0; row < rows; row++) {
       const pegsInRow = row + 3
       const rowWidth = (CANVAS_W - PAD_X * 2) * ((row + 3) / (rows + 2))
@@ -116,15 +111,12 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
       }
     }
 
-    // Draw all active balls
     for (const ball of activeBalls) {
-      // Ball shadow
       ctx.beginPath()
       ctx.arc(ball.x + 2, ball.y + 2, BALL_RADIUS, 0, Math.PI * 2)
       ctx.fillStyle = 'rgba(0,0,0,0.3)'
       ctx.fill()
 
-      // Ball body with gradient
       const grad = ctx.createRadialGradient(ball.x - 2, ball.y - 2, 1, ball.x, ball.y, BALL_RADIUS)
       grad.addColorStop(0, '#ffffff')
       grad.addColorStop(1, '#b0b0b0')
@@ -132,7 +124,7 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
       ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2)
       ctx.fillStyle = grad
       ctx.fill()
-      ctx.strokeStyle = 'rgba(20, 117, 225, 0.6)'
+      ctx.strokeStyle = 'rgba(0, 231, 1, 0.6)'
       ctx.lineWidth = 1.5
       ctx.stroke()
     }
@@ -142,9 +134,8 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
     drawBoard()
   }, [rows, drawBoard])
 
-  // Main render loop — runs whenever there are active balls
   const startRenderLoop = useCallback(() => {
-    if (animRef.current) return // already running
+    if (animRef.current) return
 
     const loop = () => {
       const now = Date.now()
@@ -153,11 +144,10 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
 
       for (const ball of currentBalls) {
         const elapsed = now - ball.startTime
-        const msPerStep = 120 // ms per peg row — controls speed
+        const msPerStep = 120
         const totalDuration = ball.positions.length * msPerStep
 
         if (elapsed >= totalDuration) {
-          // Ball reached bottom
           renderPositions.push(ball.positions[ball.positions.length - 1])
 
           if (!ball.settled) {
@@ -186,7 +176,6 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
           continue
         }
 
-        // Smooth easing between pegs
         const eased = t < 0.5
           ? 2 * t * t
           : 1 - Math.pow(-2 * t + 2, 2) / 2
@@ -201,7 +190,6 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
 
       drawBoard(renderPositions)
 
-      // Remove settled balls after a short delay
       ballsRef.current = currentBalls.filter(b => {
         if (!b.settled) return true
         return (now - b.startTime) < b.positions.length * 120 + 500
@@ -225,7 +213,6 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
     setBalance(getBalance() - numBet)
     refreshBalance()
 
-    // Simulate path
     const path = []
     for (let i = 0; i < rows; i++) {
       path.push(Math.random() < 0.5)
@@ -252,7 +239,6 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
     }
   }, [])
 
-  // When rows/risk change, clear all balls
   useEffect(() => {
     ballsRef.current = []
     if (animRef.current) {
@@ -264,24 +250,25 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
   }, [rows, risk])
 
   const activeBallCount = ballsRef.current.filter(b => !b.settled).length
+  const selectClass = 'bg-primary border-2 border-tertiary text-white px-2.5 py-1.5 rounded-lg text-sm outline-none focus:border-accent'
 
   return (
-    <div className="game-container plinko-container">
-      <h2 className="game-title">Plinko</h2>
+    <div className="max-w-3xl mx-auto text-center">
+      <h2 className="text-2xl font-bold mb-4 text-white">Plinko</h2>
 
-      <div className="plinko-settings">
+      <div className="flex gap-4 justify-center items-center mb-4 flex-wrap">
         <BetControls bet={bet} setBet={setBet} balance={balance} />
-        <div>
-          <label>Rows: </label>
-          <select value={rows} onChange={e => setRows(parseInt(e.target.value))} disabled={activeBallCount > 0}>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-text-secondary font-semibold">Rows:</label>
+          <select className={selectClass} value={rows} onChange={e => setRows(parseInt(e.target.value))} disabled={activeBallCount > 0}>
             <option value={8}>8</option>
             <option value={12}>12</option>
             <option value={16}>16</option>
           </select>
         </div>
-        <div>
-          <label>Risk: </label>
-          <select value={risk} onChange={e => setRisk(e.target.value)} disabled={activeBallCount > 0}>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-text-secondary font-semibold">Risk:</label>
+          <select className={selectClass} value={risk} onChange={e => setRisk(e.target.value)} disabled={activeBallCount > 0}>
             <option>Low</option>
             <option>Medium</option>
             <option>High</option>
@@ -289,16 +276,16 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
         </div>
       </div>
 
-      <div className="plinko-board" style={{ width: CANVAS_W, height: CANVAS_H }}>
+      <div className="relative mx-auto mb-4 bg-secondary rounded-2xl overflow-hidden" style={{ width: CANVAS_W, height: CANVAS_H }}>
         <canvas ref={canvasRef} className="plinko-canvas" width={CANVAS_W} height={CANVAS_H} />
       </div>
 
-      <div className="plinko-multipliers">
+      <div className="flex justify-center gap-1 mb-4 flex-wrap">
         {multipliers.map((m, i) => (
           <div
             key={i}
-            className={`plinko-slot ${hitSlots.includes(i) ? 'hit' : ''}`}
-            style={{ background: slotColors[i], color: 'white' }}
+            className={`plinko-slot py-1.5 px-2 rounded text-[11px] font-bold min-w-[40px] text-center text-white transition-transform ${hitSlots.includes(i) ? 'hit' : ''}`}
+            style={{ background: slotColors[i] }}
           >
             {m}x
           </div>
@@ -306,14 +293,24 @@ export default function Plinko({ balance, refreshBalance, addTransaction }) {
       </div>
 
       {lastResult && (
-        <div className={`game-result ${lastResult.profit >= 0 ? 'win' : 'lose'}`}>
+        <div className={`p-3 rounded-lg font-semibold my-3 text-sm inline-block ${
+          lastResult.profit >= 0
+            ? 'bg-green-500/10 text-green-400 border border-green-500/30'
+            : 'bg-red-500/10 text-danger border border-red-500/30'
+        }`}>
           Landed on {lastResult.mult}x — {lastResult.profit >= 0 ? `+$${lastResult.profit.toFixed(2)}` : `-$${Math.abs(lastResult.profit).toFixed(2)}`}
         </div>
       )}
 
-      <button className="btn btn-primary" onClick={dropBall} disabled={!parseFloat(bet) || parseFloat(bet) > balance}>
-        Drop Ball
-      </button>
+      <div className="mt-2">
+        <button
+          className="bg-accent hover:bg-accent-hover text-primary px-6 py-2.5 rounded-lg font-bold text-sm transition-colors border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          onClick={dropBall}
+          disabled={!parseFloat(bet) || parseFloat(bet) > balance}
+        >
+          Drop Ball
+        </button>
+      </div>
     </div>
   )
 }
